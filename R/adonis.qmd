@@ -1,0 +1,147 @@
+---
+title: "adonis"
+format: html
+editor: visual
+---
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(patchwork)
+library(readr)
+```
+
+## Data
+
+```{r}
+raw <- readr::read_csv(here::here("data/measurements.csv")) |> 
+  dplyr::mutate(Date = lubridate::mdy(Date))
+```
+
+## Functions & constants
+
+```{r}
+phi <- (1 + sqrt(5))/2
+# phi
+```
+
+```{r}
+ideal_shoulders <- function(waist) {
+  
+  round(phi * waist,0)
+}
+
+ideal_waist <- function(shoulders) {
+  round(shoulders/phi,0)
+}
+```
+
+```{r}
+current_ratio <- function(df) {
+  df |> 
+    dplyr::slice_tail(n=1) |> 
+    dplyr::mutate(ratio = round(Shoulders / Waist, 2)) |> 
+    dplyr::pull(ratio)
+}
+
+# current_ratio(raw)
+```
+
+## Shoulder/waist time series
+
+```{r}
+
+plot_muscle <- function(df, muscle) {
+  
+  if (muscle == 'shoulders') {
+    part_a <- df |> 
+      ggplot(aes(Date, Shoulders, group = 1))
+  } else {
+    part_a <- df |> 
+      ggplot(aes(Date, Waist, group = 1))
+  }
+  
+  part_a +
+    geom_line() +
+    geom_point() +
+    theme_minimal()
+  
+  
+  
+}
+
+# plot_muscle(raw, 'waist')
+
+
+```
+
+## Ratio time series
+
+```{r}
+plot_ratio <- function(df) {
+  
+  df |> 
+    dplyr::mutate(ratio = round(Shoulders/Waist, 2)) |> 
+    ggplot(aes(Date, ratio, group = 1)) +
+    geom_line() +
+    geom_point() +
+    geom_hline(yintercept = phi, color = "red", linetype = 2) +
+    theme_minimal() +
+    ylab("Ratio")
+  
+}
+
+# plot_ratio(raw)
+```
+
+## Proportion chart
+
+```{r}
+plot_prop_chart <- function(df) {
+  
+  ratio <- current_ratio(df)
+  
+  top_x_right <- 2 + (ratio - 1)
+  top_x_left <-  1 - (ratio - 1)
+  
+  x <- c(
+    2, top_x_right, top_x_left, 1
+  )
+  
+  y <- c(
+    1, 2, 2, 1
+  )
+  
+  id <- c(1,1,1,1)
+  
+  df <- dplyr::tibble(id = id, x = x, y = y)
+  
+  ggplot(df, aes(x,y)) +
+    geom_polygon(fill = "grey") +
+    ggthemes::theme_map() +
+    annotate("text",x = 1.5, y = 2.1, label = ratio, color = "red",  size = 9)
+}
+
+# plot_prop_chart(df = raw)
+```
+
+## Assemble
+
+```{r}
+
+# Muscle charts
+shoulder_chart <- plot_muscle(df = raw, muscle = "shoulders")
+waist_chart <- plot_muscle(df = raw, muscle = "waist")
+
+# Ratio chart
+ratio_chart <- plot_ratio(df = raw)
+
+# Proportion chart
+prop_chart <- plot_prop_chart(df = raw)
+
+
+patchwork <- prop_chart | (shoulder_chart / waist_chart / ratio_chart) + plot_layout(axes = "collect")
+
+patchwork + patchwork::plot_annotation(title = "Adonis Ratio Progress", subtitle = Sys.Date())
+```
